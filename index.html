@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estación Meteo Alicante - Alerta Lluvia</title>
+    <style>
+        :root {
+            --case-bg: #2c3e50;
+            --screen-bg: #9ebbb1; 
+            --screen-rain: #87CEEB; /* Color cuando llueve */
+            --screen-text: #222;
+        }
+        body {
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .meteo-device {
+            background: var(--case-bg);
+            width: 350px;
+            padding: 25px;
+            border-radius: 20px;
+            border: 6px solid #1a252f;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            color: white;
+            text-align: center;
+        }
+        .lcd-display {
+            background: var(--screen-bg);
+            color: var(--screen-text);
+            border-radius: 10px;
+            padding: 20px;
+            border: 4px solid #34495e;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+            min-height: 160px;
+            transition: background-color 0.5s ease;
+        }
+        /* Clase especial para cuando detecta lluvia */
+        .is-raining {
+            background-color: var(--screen-rain) !!important;
+        }
+        .temp-main {
+            font-size: 3.5rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            margin: 5px 0;
+        }
+        .rain-alert {
+            font-weight: bold;
+            color: #003366;
+            font-size: 0.9rem;
+            height: 1.2rem;
+            margin-bottom: 5px;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            border-top: 1px solid rgba(0,0,0,0.2);
+            padding-top: 10px;
+        }
+        .data-item span {
+            display: block;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #34495e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .status {
+            font-size: 0.7rem;
+            color: #95a5a6;
+            margin-top: 10px;
+        }
+        .blink { animation: blinker 1.5s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div class="meteo-device">
+    <h1>Alicante Meteo</h1>
+    <div class="lcd-display" id="display">
+        <div id="station-name" style="font-size: 0.8rem; font-weight: bold;">ESPERANDO SELECCIÓN</div>
+        <div id="rain-msg" class="rain-alert"></div>
+        <div id="temp" class="temp-main">--º</div>
+        <div class="data-grid">
+            <div class="data-item">Viento<span id="wind">-- km/h</span></div>
+            <div class="data-item">Lluvia mm<span id="precip">--</span></div>
+        </div>
+    </div>
+
+    <select id="citySelect">
+        <option value="">-- ELIGE LUGAR --</option>
+        <option value="lat=38.3452&lon=-0.4815&name=Alicante">Alicante Capital</option>
+        <option value="lat=38.2622&lon=-0.6993&name=Elche">Elche</option>
+        <option value="lat=38.8408&lon=0.1061&name=Dénia">Dénia</option>
+        <option value="lat=38.5411&lon=-0.1225&name=Benidorm">Benidorm</option>
+        <option value="lat=37.9787&lon=-0.6839&name=Torrevieja">Torrevieja</option>
+        <option value="lat=38.7054&lon=-0.4743&name=Alcoy">Alcoy</option>
+        <option value="lat=38.7891&lon=0.1662&name=Jávea">Jávea</option>
+        <option value="lat=38.4833&lon=-0.7915&name=Elda">Elda</option>
+    </select>
+
+    <div class="status" id="status">SISTEMA LISTO</div>
+</div>
+
+<script>
+    const citySelect = document.getElementById('citySelect');
+    const statusDiv = document.getElementById('status');
+    const displayDiv = document.getElementById('display');
+    const rainMsg = document.getElementById('rain-msg');
+
+    async function getWeatherData(params) {
+        if (!params) return;
+
+        const urlParams = new URLSearchParams(params);
+        const cityName = urlParams.get('name');
+        const lat = urlParams.get('lat');
+        const lon = urlParams.get('lon');
+
+        statusDiv.innerText = "ESCANEANDO CIELO...";
+        
+        try {
+            // Añadimos 'precipitation' a la consulta
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,wind_speed_10m&timezone=Europe%2FMadrid`;
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            const current = data.current;
+
+            // Actualizar datos básicos
+            document.getElementById('station-name').innerText = cityName.toUpperCase();
+            document.getElementById('temp').innerText = Math.round(current.temperature_2m) + "ºC";
+            document.getElementById('wind').innerText = current.wind_speed_10m.toFixed(1) + " KM/H";
+            document.getElementById('precip').innerText = current.precipitation.toFixed(1);
+
+            // Lógica de Alerta de Lluvia
+            if (current.precipitation > 0) {
+                displayDiv.classList.add('is-raining');
+                rainMsg.innerHTML = '<span class="blink">☔ ¡ESTÁ LLOVIENDO!</span>';
+            } else {
+                displayDiv.classList.remove('is-raining');
+                rainMsg.innerHTML = '☀️ CIELO DESPEJADO';
+            }
+            
+            statusDiv.innerText = "SINCRO: " + new Date().toLocaleTimeString();
+        } catch (error) {
+            statusDiv.innerText = "ERROR DE CONEXIÓN";
+        }
+    }
+
+    citySelect.addEventListener('change', (e) => {
+        getWeatherData(e.target.value);
+    });
+</script>
+
+</body>
+</html>
